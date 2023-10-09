@@ -1,16 +1,19 @@
-import requests
-from bs4 import BeautifulSoup as bs
 import regex as re
-import pandas as pd
 import time
+import os
+
 from os.path import exists
 
+import requests
+import pandas as pd
+
+from bs4 import BeautifulSoup as bs
 
 class CBS:
-    def __init__(self):
+    def __init__(self, cbs_user, cbs_pass):
         self.login_info = {
-            "userid": "zfillingham@gmail.com",
-            "password": "roflrofl",
+            "userid": cbs_user,
+            "password": cbs_pass,
             "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/118.0",
         }
 
@@ -609,11 +612,17 @@ class CBS:
 
 
 if __name__ == "__main__":
+    # load config
+    cbs_user = os.getenv("CBS_USER")
+    cbs_pass = os.getenv("CBS_PASS")
+    if not cbs_user and cbs_pass:
+        print("Missing config for CBS_USER / CBS_PASS")
+        sys.exit(1)
 
     pd.set_option("mode.chained_assignment", None)
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_colwidth", None)
 
-    cbs = CBS()
+    cbs = CBS(cbs_user, cbs_pass)
 
     cbs._zroster_builder(cbs.roster_2022)
