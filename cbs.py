@@ -4,81 +4,19 @@ import os
 
 from os.path import exists
 
+import sys
 import requests
 import pandas as pd
-
+import json
 from bs4 import BeautifulSoup as bs
 
+
 class CBS:
-    def __init__(self, cbs_user, cbs_pass):
-        self.login_info = {
-            "userid": cbs_user,
-            "password": cbs_pass,
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/118.0",
-        }
+    def __init__(self, cbs_user, cbs_pass, config):
 
-        self.tracked_datapoints = [
-            "team_name",
-            "manager",
-            "team_id",
-            "team_url",
-            "record",
-            "logo_url",
-            "weekly_games",
-            "total_salary",
-        ]
-        self.tracked_statcats = [
-            "player_name",
-            "salary",
-            "contract",
-            "position",
-            "g",
-            "mpg",
-            "fg",
-            "fgp",
-            "fgpg",
-            "ft",
-            "ftp",
-            "ftpg",
-            "3pt",
-            "3ptp",
-            "3ptpg",
-            "rpg",
-            "apg",
-            "spg",
-            "tpg",
-            "bpg",
-            "ppg",
-            "cbs_rank",
-        ]
-        self.tracked_zcats = [
-            "player_name",
-            "g",
-            "fgpg",
-            "fgp",
-            "ftpg",
-            "ftp",
-            "3ptpg",
-            "rpg",
-            "apg",
-            "spg",
-            "tpg",
-            "bpg",
-            "ppg",
-            "zrank",
-            "team_id",
-        ]
-
-        # URLS
-        self.login_url = "https://www.cbssports.com/login?"
-        self.league_home = (
-            "https://forkeeps.basketball.cbssports.com/?tid=1696446175&login=confirmed"
-        )
-        self.league_standings = (
-            "https://forkeeps.basketball.cbssports.com/standings/overall"
-        )
-        self.league_allplayers_cy = "https://forkeeps.basketball.cbssports.com/stats/stats-main/all:C:G:F/ytd:p/standard/projections?print_rows=9999"
-        self.league_2022 = "https://forkeeps.basketball.cbssports.com/stats/stats-main/all:C:G:F/2022:p/standard/stats?print_rows=9999"
+        # URLS, stat cats, login info
+        for k, v in config.items():
+            setattr(self, k, v)
 
         # HTML FILES
         self.souped_league_home = bs(
@@ -114,6 +52,7 @@ class CBS:
 
         # UPDATE HTML FILES
         with requests.Session() as s:
+            print(self.login_info)
             s.post(self.login_url, data=self.login_info)
 
             # League home
@@ -605,9 +544,27 @@ class CBS:
 
             z_df = pd.concat([pd.DataFrame.from_dict(new_entry), z_df])
 
-        # self.tracked_zcats = ['player_name', 'g', 'fgpg', 'fgp', 'ftpg', 'ftp', '3ptpg', 'rpg', 'apg', 'spg', 'tpg', 'bpg', 'ppg', 'zrank', 'team_id']
+        z_df["zrank"] = z_df.apply(
+            lambda row: sum(
+                [
+                    row.fgpg,
+                    row.ftpg,
+                    row["3ptpg"],
+                    row.rpg,
+                    row.apg,
+                    row.spg,
+                    row.tpg,
+                    row.bpg,
+                    row.ppg,
+                ]
+            ),
+            axis=1,
+        )
+        z_df = z_df.drop(columns=["fgp", "ftp"]).rename(
+            columns={"fgpg": "fg", "ftpg": "ft", "3ptpg": "3p"}
+        )
+        z_df.set_index(["player_name"], inplace=True)
 
-        print(z_df)
         return z_df
 
 
@@ -623,6 +580,9 @@ if __name__ == "__main__":
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_colwidth", None)
 
-    cbs = CBS(cbs_user, cbs_pass)
+    with open("cbs-config.json", "r") as f:
+        json_config = json.load(f)
+
+    cbs = CBS(cbs_user, cbs_pass, json_config)
 
     cbs._zroster_builder(cbs.roster_2022)
