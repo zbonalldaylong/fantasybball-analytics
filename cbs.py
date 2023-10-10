@@ -1,9 +1,7 @@
 import regex as re
 import time
 import os
-
 from os.path import exists
-
 import sys
 import requests
 import pandas as pd
@@ -18,16 +16,30 @@ class CBS:
         for k, v in config.items():
             setattr(self, k, v)
 
+
+        #TEMP
+        self.punts = ['3pt', 'ftpg']
+
+
         # HTML FILES
-        self.souped_league_home = bs(
-            open("league_home.html", mode="r", encoding="utf-8"), "html.parser"
-        )
-        self.souped_league_standings = bs(
-            open("league_standings.html", mode="r", encoding="utf-8"), "html.parser"
-        )
-        self.souped_allplayers = bs(
-            open("html/all_players.html", mode="r", encoding="utf-8"), "html.parser"
-        )
+        
+        if exists('league_home.html'):
+            self.souped_league_home = bs(
+                open("html/league_home.html", mode="r", encoding="utf-8"), "html.parser"
+            )
+        else: pass 
+        
+        if exists('html/league_standings.html'):
+            self.souped_league_standings = bs(
+                open("html/league_standings.html", mode="r", encoding="utf-8"), "html.parser"
+            )
+        else: pass 
+        
+        if exists('html/all_players.html'):
+            self.souped_allplayers = bs(
+                open("html/all_players.html", mode="r", encoding="utf-8"), "html.parser"
+            )
+        else: pass
 
         # DF FILES
         if exists("pickle/pickled_league_df.pkl"):
@@ -59,7 +71,7 @@ class CBS:
             league_home_rawhtml = s.get(self.league_home)
             league_home_rawhtml.encoding = "utf-8"
             souped_league_home = bs(league_home_rawhtml.text, "html.parser")
-            with open("league_home.html", "w", encoding="utf-8") as file:
+            with open("html/league_home.html", "w", encoding="utf-8") as file:
                 file.write(str(souped_league_home))
 
             time.sleep(1)
@@ -68,7 +80,7 @@ class CBS:
             league_standings_rawhtml = s.get(self.league_standings)
             league_standings_rawhtml.encoding = "utf-8"
             souped_league_standings = bs(league_standings_rawhtml.text, "html.parser")
-            with open("league_standings.html", "w", encoding="utf-8") as file:
+            with open("html/league_standings.html", "w", encoding="utf-8") as file:
                 file.write(str(souped_league_standings))
 
             time.sleep(1)
@@ -544,25 +556,32 @@ class CBS:
 
             z_df = pd.concat([pd.DataFrame.from_dict(new_entry), z_df])
 
-        z_df["zrank"] = z_df.apply(
-            lambda row: sum(
-                [
-                    row.fgpg,
-                    row.ftpg,
-                    row["3ptpg"],
-                    row.rpg,
-                    row.apg,
-                    row.spg,
-                    row.tpg,
-                    row.bpg,
-                    row.ppg,
-                ]
-            ),
-            axis=1,
-        )
+
+        # z_df["zrank"] = z_df.apply(
+        #     lambda row: sum(
+        #         [
+        #             row.fgpg,
+        #             row.ftpg,
+        #             row["3ptpg"],
+        #             row.rpg,
+        #             row.apg,
+        #             row.spg,
+        #             row.tpg,
+        #             row.bpg,
+        #             row.ppg,
+        #         ]
+        #     ),
+        #     axis=1,
+        # )
+        
+        z_df['zrank'] = z_df.apply(lambda row: sum([row[x] for x in self.tracked_zcats if x not in exclusions and x not in self.punts]))
+        
+        
+        
         z_df = z_df.drop(columns=["fgp", "ftp"]).rename(
             columns={"fgpg": "fg", "ftpg": "ft", "3ptpg": "3p"}
         )
+        
         z_df.set_index(["player_name"], inplace=True)
 
         return z_df
@@ -585,4 +604,4 @@ if __name__ == "__main__":
 
     cbs = CBS(cbs_user, cbs_pass, json_config)
 
-    cbs._zroster_builder(cbs.roster_2022)
+    cbs.update()
