@@ -1,208 +1,226 @@
 import regex as re
-import time
 import os
 from os.path import exists
 import sys
 import requests
 import pandas as pd
 import json
+import logging
+from pathlib import Path
+from datetime import datetime
 from bs4 import BeautifulSoup as bs
 
 
 class CBS:
-    def __init__(self, cbs_user, cbs_pass, config):
+    def __init__(self, cbs_user, cbs_pass, c_path):
 
-        # URLS, stat cats, login info
-        for k, v in config.items():
-            setattr(self, k, v)
+        # Logging (output to file)
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+        log_path = Path(__file__).parent / "logs/commentscrape.log"
+        self.file_handler = logging.FileHandler(log_path, encoding="utf-8", mode="w")
+        self.file_format = logging.Formatter(
+            "%(asctime)s, %(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s"
+        )
+        self.file_handler.setFormatter(self.file_format)
+        self.logger.addHandler(self.file_handler)
 
+        with open(c_path, "r") as f:
+            json_config = json.load(f)
 
-        #TEMP
-        self.punts = ['3pt', 'ftpg']
+        self.config = json_config
+        self.config["login_info"].update({"userid": cbs_user, "password": cbs_pass})
 
+        # TEMP
+        # self.punts = []
+        self.punts = ["3pt", "ftpg"]
+        self.config["league_total_budget"] = 2000
 
         # HTML FILES
-        
-        if exists('league_home.html'):
-            self.souped_league_home = bs(
-                open("html/league_home.html", mode="r", encoding="utf-8"), "html.parser"
-            )
-        else: pass 
-        
-        if exists('html/league_standings.html'):
-            self.souped_league_standings = bs(
-                open("html/league_standings.html", mode="r", encoding="utf-8"), "html.parser"
-            )
-        else: pass 
-        
-        if exists('html/all_players.html'):
-            self.souped_allplayers = bs(
-                open("html/all_players.html", mode="r", encoding="utf-8"), "html.parser"
-            )
-        else: pass
+        if exists(Path(__file__).parent / "html/league_home.html"):
+            path = Path(__file__).parent / "html/league_home.html"
+            with path.open("r", encoding="utf-8") as f:
+                self.souped_league_home = bs(f, "html.parser")
+        else:
+            self.update()
+
+        if exists(Path(__file__).parent / "html/league_standings.html"):
+            path = Path(__file__).parent / "html/league_standings.html"
+            with path.open("r", encoding="utf-8") as f:
+                self.souped_league_standings = bs(f, "html.parser")
+        else:
+            self.update()
+
+        if exists(Path(__file__).parent / "html/all_players.html"):
+            path = Path(__file__).parent / "html/all_players.html"
+            with path.open("r", encoding="utf-8") as f:
+                self.souped_allplayers = bs(f, "html.parser")
+        else:
+            self.update()
 
         # DF FILES
-        if exists("pickle/pickled_league_df.pkl"):
-            self.league_df = pd.read_pickle("pickle/pickled_league_df.pkl")
-        else:
-            self.league_df = self._league_builder()
-
-        if exists("pickle/pickled_roster_df.pkl"):
-            self.roster_current = pd.read_pickle("pickle/pickled_roster_df.pkl")
-        else:
-            self.roster_current = self._roster_builder("html/all_players.html")
-
-        if exists("pickle/pickled_roster_2022.pkl"):
-            self.roster_2022 = pd.read_pickle("pickle/pickled_roster_2022.pkl")
-        else:
-            self._roster_builder("html/roster_2022.html").drop(
-                columns=["salary", "position", "contract"]
+        if exists(Path(__file__).parent / "pickle/pickled_league_df.pkl"):
+            self.league_df = pd.read_pickle(
+                Path(__file__).parent / "pickle/pickled_league_df.pkl"
             )
+        else:
+            self.update()
+
+        if exists(Path(__file__).parent / "pickle/pickled_roster_df.pkl"):
+            self.roster_current = pd.read_pickle(
+                Path(__file__).parent / "pickle/pickled_roster_df.pkl"
+            )
+        else:
+            self.update()
+
+        if exists(Path(__file__).parent / "pickle/pickled_roster_2022.pkl"):
+            self.roster_2022 = pd.read_pickle(
+                Path(__file__).parent / "pickle/pickled_roster_2022.pkl"
+            )
+        else:
+            self.update()
 
     # Updates local html files so as not to hammer their website with requests
     def update(self):
 
         # UPDATE HTML FILES
         with requests.Session() as s:
-            print(self.login_info)
-            s.post(self.login_url, data=self.login_info)
+            s.post(self.config["login_url"], data=self.config["login_info"])
 
             # League home
-            league_home_rawhtml = s.get(self.league_home)
+            league_home_rawhtml = s.get(self.config["league_home"])
             league_home_rawhtml.encoding = "utf-8"
             souped_league_home = bs(league_home_rawhtml.text, "html.parser")
-            with open("html/league_home.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/league_home.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_league_home))
 
-            time.sleep(1)
-
             # League standings
-            league_standings_rawhtml = s.get(self.league_standings)
+            league_standings_rawhtml = s.get(self.config["league_standings"])
             league_standings_rawhtml.encoding = "utf-8"
             souped_league_standings = bs(league_standings_rawhtml.text, "html.parser")
-            with open("html/league_standings.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/league_standings.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_league_standings))
-
-            time.sleep(1)
 
             team_1_html = s.get("https://forkeeps.basketball.cbssports.com/teams/1")
             team_1_html.encoding = "utf-8"
             souped_team_1 = bs(team_1_html.text, "html.parser")
-            with open("html/team_1.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/team_1.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_team_1))
-
-            time.sleep(1)
 
             team_2_html = s.get("https://forkeeps.basketball.cbssports.com/teams/2")
             team_2_html.encoding = "utf-8"
             souped_team_2 = bs(team_2_html.text, "html.parser")
-            with open("html/team_2.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/team_2.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_team_2))
-
-            time.sleep(1)
 
             team_3_html = s.get("https://forkeeps.basketball.cbssports.com/teams/3")
             team_3_html.encoding = "utf-8"
             souped_team_3 = bs(team_3_html.text, "html.parser")
-            with open("html/team_3.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/team_3.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_team_3))
-
-            time.sleep(1)
 
             team_4_html = s.get("https://forkeeps.basketball.cbssports.com/teams/4")
             team_4_html.encoding = "utf-8"
             souped_team_4 = bs(team_4_html.text, "html.parser")
-            with open("html/team_4.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/team_4.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_team_4))
-
-            time.sleep(1)
 
             team_5_html = s.get("https://forkeeps.basketball.cbssports.com/teams/5")
             team_5_html.encoding = "utf-8"
             souped_team_5 = bs(team_5_html.text, "html.parser")
-            with open("html/team_5.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/team_5.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_team_5))
-
-            time.sleep(1)
 
             team_6_html = s.get("https://forkeeps.basketball.cbssports.com/teams/6")
             team_6_html.encoding = "utf-8"
             souped_team_6 = bs(team_6_html.text, "html.parser")
-            with open("html/team_6.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/team_6.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_team_6))
-
-            time.sleep(1)
 
             team_7_html = s.get("https://forkeeps.basketball.cbssports.com/teams/7")
             team_7_html.encoding = "utf-8"
             souped_team_7 = bs(team_7_html.text, "html.parser")
-            with open("html/team_7.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/team_7.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_team_7))
-
-            time.sleep(1)
 
             team_8_html = s.get("https://forkeeps.basketball.cbssports.com/teams/8")
             team_8_html.encoding = "utf-8"
             souped_team_8 = bs(team_8_html.text, "html.parser")
-            with open("html/team_8.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/team_8.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_team_8))
-
-            time.sleep(1)
 
             team_9_html = s.get("https://forkeeps.basketball.cbssports.com/teams/9")
             team_9_html.encoding = "utf-8"
             souped_team_9 = bs(team_9_html.text, "html.parser")
-            with open("html/team_9.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/team_9.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_team_9))
-
-            time.sleep(1)
 
             team_10_html = s.get("https://forkeeps.basketball.cbssports.com/teams/10")
             team_10_html.encoding = "utf-8"
             souped_team_10 = bs(team_10_html.text, "html.parser")
-            with open("html/team_10.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/team_10.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_team_10))
 
-            time.sleep(1)
-
-            all_players_html = s.get(self.league_allplayers_cy)
+            all_players_html = s.get(self.config["league_allplayers_cy"])
             all_players_html.encoding = "utf-8"
             souped_all_players = bs(all_players_html.text, "html.parser")
-            with open("html/all_players.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/all_players.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_all_players))
 
-            time.sleep(1)
-
-            roster_2022_html = s.get(self.league_2022)
+            roster_2022_html = s.get(self.config["league_2022"])
             roster_2022_html.encoding = "utf-8"
             souped_roster_2022 = bs(roster_2022_html.text, "html.parser")
-            with open("html/roster_2022.html", "w", encoding="utf-8") as file:
+            html_path = Path(__file__).parent / "html/roster_2022.html"
+            with html_path.open("w", encoding="utf-8") as file:
                 file.write(str(souped_roster_2022))
+
+        self.logger.info(f"\nLAST UPDATE: {datetime.now()}")
 
         # UPDATE DF PICKLES
         pickled_league_df = self._league_builder()
-        pickled_roster_df = self._roster_builder("html/all_players.html")
-        pickled_roster_2022 = self._roster_builder("html/roster_2022.html").drop(
-            columns=["salary", "position", "contract"]
+        pickled_roster_df = self._roster_builder(
+            Path(__file__).parent / "html/all_players.html"
         )
+        pickled_roster_2022 = self._roster_builder(
+            Path(__file__).parent / "html/roster_2022.html"
+        ).drop(columns=["salary", "position", "contract"])
 
         pickled_league_df, pickled_roster_df = self._additional_roster_filler(
             pickled_league_df, pickled_roster_df
         )
 
-        pickled_league_df.to_pickle("pickle/pickled_league_df.pkl")
-        pickled_roster_df.to_pickle("pickle/pickled_roster_df.pkl")
-        pickled_roster_2022.to_pickle("pickle/pickled_roster_2022.pkl")
+        pickled_league_df.to_pickle(
+            Path(__file__).parent / "pickle/pickled_league_df.pkl"
+        )
+        pickled_roster_df.to_pickle(
+            Path(__file__).parent / "pickle/pickled_roster_df.pkl"
+        )
+        pickled_roster_2022.to_pickle(
+            Path(__file__).parent / "pickle/pickled_roster_2022.pkl"
+        )
 
     def session(self):
         with requests.Session() as s:
-            s.post(self.login_url, data=self.login_info)
+            s.post(self.config["login_url"], data=self.config["login_info"])
             return s
 
     # Builds the basic league info df on initialization
     def _league_builder(self):
         teams_exclusion_list = []
-        df_output = pd.DataFrame(columns=self.tracked_datapoints)
+        df_output = pd.DataFrame(columns=self.config["tracked_datapoints"])
 
         ls_split_html = str(self.souped_league_standings).split("FantasyGlobalChatJson")
         teams_chunk = re.findall(
@@ -274,7 +292,7 @@ class CBS:
     # Builds the roster (can be used for past/present years)
     def _roster_builder(self, html):
 
-        df_output = pd.DataFrame(columns=self.tracked_statcats)
+        df_output = pd.DataFrame(columns=self.config["tracked_statcats"])
 
         with open(html, "r", encoding="utf-8") as f:
             souped_allplayers = bs(f, "html.parser")
@@ -410,7 +428,9 @@ class CBS:
         # Goes through all the teams
         for id in range(1, 11):
 
-            with open(f"html/team_{id}.html", "r", encoding="utf-8") as f:
+            with open(
+                Path(__file__).parent / f"html/team_{id}.html", "r", encoding="utf-8"
+            ) as f:
                 souped_team = bs(f, "html.parser")
 
             # Harvest data
@@ -464,10 +484,16 @@ class CBS:
     def _zroster_builder(self, roster):
         exclusions = ["player_name", "g", "team_id", "zrank"]
         data_refs = {
-            str(x + "-avg"): None for x in self.tracked_zcats if x not in exclusions
-        } | {str(x + "-stdev"): None for x in self.tracked_zcats if x not in exclusions}
+            str(x + "-avg"): None
+            for x in self.config["tracked_zcats"]
+            if x not in exclusions
+        } | {
+            str(x + "-stdev"): None
+            for x in self.config["tracked_zcats"]
+            if x not in exclusions
+        }
 
-        for x in self.tracked_zcats:
+        for x in self.config["tracked_zcats"]:
             if x not in exclusions:
                 data_refs.update({str(x + "-avg"): roster[x].mean().round(3)})
                 data_refs.update({str(x + "-stdev"): roster[x].std().round(3)})
@@ -486,7 +512,7 @@ class CBS:
         data_refs["ft-impact-avg"] = roster["ft-impact"].mean().round(3)
 
         # Build the z-roster
-        z_df = pd.DataFrame(columns=self.tracked_zcats)
+        z_df = pd.DataFrame(columns=self.config["tracked_zcats"])
 
         for index, row in roster.iterrows():
             new_entry = {
@@ -556,34 +582,70 @@ class CBS:
 
             z_df = pd.concat([pd.DataFrame.from_dict(new_entry), z_df])
 
+        # Player zrank
+        z_df["zrank"] = z_df.apply(
+            lambda row: sum(
+                [
+                    row[x]
+                    for x in self.config["tracked_zcats"]
+                    if x not in exclusions and x != "fgp" and x != "ftp"
+                ]
+            ),
+            axis=1,
+        ).round(3)
 
-        # z_df["zrank"] = z_df.apply(
-        #     lambda row: sum(
-        #         [
-        #             row.fgpg,
-        #             row.ftpg,
-        #             row["3ptpg"],
-        #             row.rpg,
-        #             row.apg,
-        #             row.spg,
-        #             row.tpg,
-        #             row.bpg,
-        #             row.ppg,
-        #         ]
-        #     ),
-        #     axis=1,
-        # )
-        
-        z_df['zrank'] = z_df.apply(lambda row: sum([row[x] for x in self.tracked_zcats if x not in exclusions and x not in self.punts]))
-        
-        
-        
+        # Adjusted player zrank (takes punted cats into consideration)
+        z_df["adj-zrank"] = z_df.apply(
+            lambda row: sum(
+                [
+                    row[x]
+                    for x in self.config["tracked_zcats"]
+                    if x not in exclusions
+                    and x not in self.punts
+                    and x != "fgp"
+                    and x != "ftp"
+                ]
+            ),
+            axis=1,
+        ).round(3)
+
+        # Zrank dif (shows impact of punting cats)
+        z_df["z-dif"] = z_df.apply(
+            lambda row: (row["zrank"] - row["adj-zrank"]) * -1, axis=1
+        ).round(3)
+
+        # Calculate relative $ value
+        z_df["draft"] = (
+            z_df.apply(
+                lambda row: (row["zrank"] / z_df["zrank"].sum())
+                * self.config["league_total_budget"]
+                / 10000,
+                axis=1,
+            )
+            .round(0)
+            .astype("int")
+        )
+
+        # Calculate relative $ value
+        z_df["adj-draft"] = (
+            z_df.apply(
+                lambda row: (row["adj-zrank"] / z_df["adj-zrank"].sum())
+                * self.config["league_total_budget"]
+                / 10000,
+                axis=1,
+            )
+            .round(0)
+            .astype("int")
+        )
+
+        # Cleanup the df
         z_df = z_df.drop(columns=["fgp", "ftp"]).rename(
             columns={"fgpg": "fg", "ftpg": "ft", "3ptpg": "3p"}
         )
-        
+
         z_df.set_index(["player_name"], inplace=True)
 
+        print(z_df.sort_values(by="adj-draft"))
         return z_df
 
 
@@ -591,17 +653,16 @@ if __name__ == "__main__":
     # load config
     cbs_user = os.getenv("CBS_USER")
     cbs_pass = os.getenv("CBS_PASS")
-    if not cbs_user and cbs_pass:
-        print("Missing config for CBS_USER / CBS_PASS")
+    config_path = os.getenv("CBS_CONFIG")
+
+    if not cbs_user and cbs_pass and config_path:
+        print("Missing env values for CBS_USER / CBS_PASS / CBS_CONFIG")
         sys.exit(1)
 
     pd.set_option("mode.chained_assignment", None)
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_colwidth", None)
 
-    with open("cbs-config.json", "r") as f:
-        json_config = json.load(f)
+    cbs = CBS(cbs_user, cbs_pass, config_path)
 
-    cbs = CBS(cbs_user, cbs_pass, json_config)
-
-    cbs.update()
+    cbs._zroster_builder(cbs.roster_2022)

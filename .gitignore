@@ -1,1 +1,6 @@
 .config
+env
+pickle
+html
+logs
+

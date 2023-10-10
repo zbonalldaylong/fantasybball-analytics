@@ -2,4 +2,8 @@ requests
 bs4
 regex
 pandas
+datetime
+logging
+json
+pathlib
 
