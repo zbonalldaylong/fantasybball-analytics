@@ -23,7 +23,7 @@ Functions for visualizing/analyzing pool data. These include:
 <br>
 3) **faceoff(record, team:str, period:list)**
   * Assesses a team's weekly results against a hypothetical matchup against each other team in the field; outputs what the score would have been had they matched up. 
-
+<br>
 
 # configuration
 create a file named .config
