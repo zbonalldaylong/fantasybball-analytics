@@ -8,6 +8,9 @@ A class framework to scrape/update data for an online basketball fantasy pool. U
 create a file named .config
 CBS_USER="*email*"
 CBS_PASS="*password*"
+CBS_CONFIG = "*path to cbs-config.json file*
+
+Config file 
 
 % source .config
 
