@@ -1,6 +1,7 @@
-# nba-analytics
+# fantasybball-analytics
 
-cbs.py is a framework to scrape/update all relevant data from my fantasy pool. It will be used to pull data into matplotlib visualizations. 
+## cbs.py 
+A class framework to scrape/update data for an online basketball fantasy pool. Updates are performed with the .update() function and stored in local html/pickle files.
 
 
 # configuration
