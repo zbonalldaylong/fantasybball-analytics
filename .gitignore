@@ -3,7 +3,7 @@ env
 pickle
 html
 logs
-__pycache_
+__pycache__
 *.swp
 *.json
 images
