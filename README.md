@@ -16,7 +16,6 @@ Functions for visualizing/analyzing pool data. These include:
 <br>
 2) **snapshot(record (df from CBS class), team:str, period:list)**
    * Outputs a visual rundown of a team's category-by-category performance across specified periods.
-<br>
 ![snapshot output](https://github.com/zbonalldaylong/fantasybball-analytics/assets/77871506/d669dea0-6f4e-4da1-bcf9-56e6f4a4b33d)
 <br>
 <br>
