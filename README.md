@@ -13,14 +13,15 @@ Functions for visualizing/analyzing pool data. These include:
 ![team_strengths output (teams blanked out)](https://github.com/zbonalldaylong/fantasybball-analytics/assets/77871506/23778633-e882-4dc9-84fb-aca5b5255b37)
 <br>
 <br>
-
-2) snapshot(record (df from CBS class), team:str, period:list)
+<br>
+2) **snapshot(record (df from CBS class), team:str, period:list)**
    * Outputs a visual rundown of a team's category-by-category performance across specified periods.
-     
+<br>
 ![snapshot output](https://github.com/zbonalldaylong/fantasybball-analytics/assets/77871506/d669dea0-6f4e-4da1-bcf9-56e6f4a4b33d)
 <br>
 <br>
-3) faceoff(record, team:str, period:list)
+<br>
+3) **faceoff(record, team:str, period:list)**
   * Assesses a team's weekly results against a hypothetical matchup against each other team in the field; outputs what the score would have been had they matched up. 
 
 
