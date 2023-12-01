@@ -16,8 +16,12 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 
 
+
 class CBS:
-    def __init__(self, cbs_user: str, cbs_pass: str, c_path: str):
+    
+    """Class to maintain and update pool data; update results via .update() function. Used in conjunction with analytics.py, which contains various analysis/visualization functions"""
+    
+    def __init__(self, cbs_user:str, cbs_pass:str, c_path:str):
 
         # Logging (output to file)
         self.logger = logging.getLogger(__name__)
@@ -38,67 +42,61 @@ class CBS:
         self.punts = ["3pt", "ppg"]
         self.config["league_total_budget"] = 2000
         self.c_path = c_path
-
+        
         # LOAD FROM HTML FILES
         if exists(Path(__file__).parent / "html/league_home.html"):
             path = Path(__file__).parent / "html/league_home.html"
             with path.open("r", encoding="utf-8") as f:
                 self.souped_league_home = bs(f, "html.parser")
-        else:
-            self.update()
+        else: self.update()
 
         if exists(Path(__file__).parent / "html/league_standings.html"):
             path = Path(__file__).parent / "html/league_standings.html"
             with path.open("r", encoding="utf-8") as f:
                 self.souped_league_standings = bs(f, "html.parser")
-        else:
-            self.update()
+        else: self.update()
 
         if exists(Path(__file__).parent / "html/all_players.html"):
             path = Path(__file__).parent / "html/all_players.html"
             with path.open("r", encoding="utf-8") as f:
                 self.souped_allplayers = bs(f, "html.parser")
-        else:
-            self.update()
+        else: self.update()
 
         # LOAD FROM DF FILES
         if exists(Path(__file__).parent / "pickle/pickled_league_df.pkl"):
             self.league_df = pd.read_pickle(
                 Path(__file__).parent / "pickle/pickled_league_df.pkl"
             )
-        else:
-            self.update()
+        else: self.update()
 
         if exists(Path(__file__).parent / "pickle/pickled_roster_df.pkl"):
             self.roster_current = pd.read_pickle(
                 Path(__file__).parent / "pickle/pickled_roster_df.pkl"
             )
-        else:
-            self.update()
+        else: self.update()
 
         if exists(Path(__file__).parent / "pickle/pickled_roster_2022.pkl"):
             self.roster_2022 = pd.read_pickle(
                 Path(__file__).parent / "pickle/pickled_roster_2022.pkl"
             )
-        else:
-            self.update()
+        else: self.update()
 
         if exists(Path(__file__).parent / "pickle/pickled_zscores.pkl"):
             self.zscores = pd.read_pickle(
                 Path(__file__).parent / "pickle/pickled_zscores.pkl"
             )
-        else:
-            self.update()
-
+        else: self.update()
+        
         if exists(Path(__file__).parent / "pickle/pickled_record.pkl"):
             self.league_record = pd.read_pickle(
                 Path(__file__).parent / "pickle/pickled_record.pkl"
             )
-        else:
-            self.update()
-
-    # Updates local html files so as not to hammer their website with requests
+        else: self.update()
+        
+        
+    
     def update(self, refresh=False):
+        """ Updates local html and pickle files so as to minimize requests on the website; class methods run from pickled backups """
         def _html_updater():
             # UPDATE HTML FILES
             with requests.Session() as s:
@@ -115,9 +113,7 @@ class CBS:
                 # League standings
                 league_standings_rawhtml = s.get(self.config["league_standings"])
                 league_standings_rawhtml.encoding = "utf-8"
-                souped_league_standings = bs(
-                    league_standings_rawhtml.text, "html.parser"
-                )
+                souped_league_standings = bs(league_standings_rawhtml.text, "html.parser")
                 html_path = Path(__file__).parent / "html/league_standings.html"
                 with html_path.open("w", encoding="utf-8") as file:
                     file.write(str(souped_league_standings))
@@ -185,9 +181,7 @@ class CBS:
                 with html_path.open("w", encoding="utf-8") as file:
                     file.write(str(souped_team_9))
 
-                team_10_html = s.get(
-                    "https://forkeeps.basketball.cbssports.com/teams/10"
-                )
+                team_10_html = s.get("https://forkeeps.basketball.cbssports.com/teams/10")
                 team_10_html.encoding = "utf-8"
                 souped_team_10 = bs(team_10_html.text, "html.parser")
                 html_path = Path(__file__).parent / "html/team_10.html"
@@ -209,23 +203,20 @@ class CBS:
                     file.write(str(souped_roster_2022))
 
             self.logger.info(f"\nLAST HTML UPDATE: {datetime.now()}")
-
+        
         def _pickle_updater():
-            # UPDATE DF PICKLES
             pickled_league_df = self._league_builder()
-
+            
             pickled_roster_df = self._roster_builder(
                 Path(__file__).parent / "html/all_players.html"
             )
-
+        
             pickled_roster_2022 = self._roster_builder(
                 Path(__file__).parent / "html/roster_2022.html"
             ).drop(columns=["salary", "position", "contract"])
-
-            pickled_zscores = self._zroster_builder(
-                pickled_roster_df.drop(columns=["salary", "position", "contract"])
-            )
-
+            
+            pickled_zscores = self._zroster_builder(pickled_roster_df.drop(columns=["salary", "position", "contract"]))
+            
             pickled_league_df, pickled_roster_df = self._additional_roster_filler(
                 pickled_league_df, pickled_roster_df
             )
@@ -242,176 +233,113 @@ class CBS:
             pickled_zscores.to_pickle(
                 Path(__file__).parent / "pickle/pickled_zscores.pkl"
             )
-
+        
             self.logger.info(f"\nLAST PICKLE UPDATE: {datetime.now()}")
-
+        
         def _weekly_totals_updater(refresh=False):
+            """ Scrapes weekly head-to-head results for the league """
+            
             def __login_sequence(destination_url):
-                self.driver.get(
-                    "https://www.cbssports.com/user/login/?redirectUrl=https%3A%2F%2Fwww.cbssports.com%2F%3Flogin%3Dconfirmed"
-                )
+                """ Login sequence for CBS website """
+                self.driver.get('https://www.cbssports.com/user/login/?redirectUrl=https%3A%2F%2Fwww.cbssports.com%2F%3Flogin%3Dconfirmed')
                 time.sleep(4)
-                self.driver.find_element(By.ID, "app_login_username").send_keys(
-                    os.getenv("CBS_USER")
-                )
-                self.driver.find_element(By.ID, "app_login_password").send_keys(
-                    os.getenv("CBS_PASS")
-                )
-                self.driver.find_element(By.CLASS_NAME, "BasicButton").click()
+                self.driver.find_element(By.ID, 'app_login_username').send_keys(os.getenv("CBS_USER"))
+                self.driver.find_element(By.ID, 'app_login_password').send_keys(os.getenv("CBS_PASS"))
+                self.driver.find_element(By.CLASS_NAME, 'BasicButton').click()
                 time.sleep(1)
                 self.driver.get(destination_url)
                 time.sleep(1)
+                   
 
             def __record_formatter(df, periods: list):
-                df = df.astype(
-                    {
-                        "score": str,
-                        "3pt": float,
-                        "ast": float,
-                        "bk": float,
-                        "fgp": float,
-                        "ftp": float,
-                        "g": int,
-                        "min": float,
-                        "pts": float,
-                        "st": float,
-                        "to": float,
-                        "trb": float,
-                    }
-                )
-                df.set_index("team", inplace=True)
+                df = df.astype({'score':str, '3pt':float, 'ast':float, 'bk':float, 'fgp':float, 'ftp':float, 'g':int, 'min':float, 'pts':float, 'st':float, 'to':float, 'trb':float})
+                df.set_index('team', inplace=True)
                 return df
-
-            # SELENIUM WEB DRIVER
+            
+            
+            #SELENIUM WEB DRIVER
             self.service = Service()
             self.options = webdriver.FirefoxOptions()
             self.options.add_argument("--headless")
-            self.options.binary_location = r'/home/zbon/bin'
             self.driver = webdriver.Firefox(service=self.service, options=self.options)
-
-            # Login to CBS
-            __login_sequence(
-                "https://forkeeps.basketball.cbssports.com/scoring/standard"
-            )
-
-            full_period = self.driver.find_element(
-                By.CSS_SELECTOR, "div.select_div_label_container"
-            ).text
-            period_date = re.search(
-                r"(?:([^,]*\,\s)){2}(.*?)(?=\))", full_period
-            ).group(2)
-            period_no = int(re.search(r"(?<=PERIOD\s).*(?=\s\()", full_period).group(0))
-            full_date = datetime.strptime(
-                str(period_date).replace(" ", "-") + "-" + str(datetime.today().year),
-                "%b-%d-%Y",
-            )
-
-            # Update the config file with the current period
+            
+            #Login to CBS
+            __login_sequence('https://forkeeps.basketball.cbssports.com/scoring/standard')
+          
+            full_period = self.driver.find_element(By.CSS_SELECTOR, 'div.select_div_label_container').text
+            period_date = re.search(r'(?:([^,]*\,\s)){2}(.*?)(?=\))', full_period).group(2)
+            period_no = int(re.search(r'(?<=PERIOD\s).*(?=\s\()', full_period).group(0))
+            full_date = datetime.strptime(str(period_date).replace(' ', '-') + '-' + str(datetime.today().year), '%b-%d-%Y')
+                
+            #Update the config file with the current period
             with open(self.c_path, "r") as config_file:
                 config = json.load(config_file)
+  
+            config.update({'league_period':f'{period_no}'})
 
-            config.update({"league_period": f"{period_no}"})
-
-            with open(self.c_path, "w") as config_file:
+            with open(self.c_path, 'w') as config_file:
                 config_file.write(json.dumps(config, indent=4))
-
-            # Create a new DF
+            
+            #Create a new DF
             record_df = pd.DataFrame()
 
             start_loop = 1
-            if refresh == True:  # Full updating forced
+            if refresh == True: #Full updating forced
                 period_loop = period_no
-
-            # Harvest the data
-            cats = [
-                "period",
-                "team",
-                "opponent",
-                "score",
-                "3pt",
-                "ast",
-                "bk",
-                "fgp",
-                "ftp",
-                "g",
-                "min",
-                "pts",
-                "st",
-                "to",
-                "trb",
-                "period",
-            ]
-
-            # Start the harvest loop - p for periods, t for teams to iterate through the urls
+            
+            #Harvest the data
+            cats = ['period', 'team', 'opponent', 'score', '3pt', 'ast', 'bk', 'fgp', 'ftp', 'g', 'min', 'pts', 'st', 'to', 'trb', 'period']
+            
+            #Start the harvest loop - p for periods, t for teams to iterate through the urls
             for p in range(start_loop, (period_loop + 1)):
                 for t in range(1, 6):
-                    self.driver.get(
-                        f"https://forkeeps.basketball.cbssports.com/scoring/standard/{p}/{t}"
-                    )
+                    self.driver.get(f'https://forkeeps.basketball.cbssports.com/scoring/standard/{p}/{t}')
                     time.sleep(1)
-
-                    # Arrange the stats for insertion into dictionary
-                    away_scores = [
-                        self.driver.find_element(By.ID, z).text
-                        for z in ["awayocats" + str(y) for y in range(0, 11)]
-                    ]
-                    away_scores.insert(
-                        0, self.driver.find_element(By.ID, "T_CAT_topSBAWAY").text
-                    )
-                    away_scores.insert(
-                        1, self.driver.find_element(By.ID, "away_big_score").text
-                    )
-                    home_scores = [
-                        self.driver.find_element(By.ID, z).text
-                        for z in ["homeocats" + str(y) for y in range(0, 11)]
-                    ]
-                    home_scores.insert(
-                        0, self.driver.find_element(By.ID, "T_CAT_topSBHOME").text
-                    )
-                    home_scores.insert(
-                        1, self.driver.find_element(By.ID, "T_CAT_topSBAWAY").text
-                    )
-                    home_scores.insert(
-                        2, self.driver.find_element(By.ID, "home_big_score").text
-                    )
-                    away_scores.insert(
-                        1, self.driver.find_element(By.ID, "T_CAT_topSBHOME").text
-                    )
-
-                    # Insert periods
+                   
+                    #Arrange the stats for insertion into dictionary
+                    away_scores = [self.driver.find_element(By.ID, z).text for z in ['awayocats' + str(y) for y in range(0, 11)]]
+                    away_scores.insert(0, self.driver.find_element(By.ID,'T_CAT_topSBAWAY').text)
+                    away_scores.insert(1, self.driver.find_element(By.ID,'away_big_score').text)
+                    home_scores = [self.driver.find_element(By.ID, z).text for z in ['homeocats' + str(y) for y in range(0, 11)]]
+                    home_scores.insert(0, self.driver.find_element(By.ID,'T_CAT_topSBHOME').text)
+                    home_scores.insert(1, self.driver.find_element(By.ID,'T_CAT_topSBAWAY').text)
+                    home_scores.insert(2, self.driver.find_element(By.ID,'home_big_score').text)
+                    away_scores.insert(1, self.driver.find_element(By.ID,'T_CAT_topSBHOME').text)
+                    
+                    #Insert periods
                     home_scores.insert(0, int(p))
                     away_scores.insert(0, int(p))
-
-                    # Insert the entry into the dataframe
-                    new_home = pd.DataFrame([{x: y for x, y in zip(cats, home_scores)}])
-                    new_away = pd.DataFrame([{x: y for x, y in zip(cats, away_scores)}])
-
+                    
+                    #Insert the entry into the dataframe
+                    new_home = pd.DataFrame([{x:y for x, y in zip(cats, home_scores)}])
+                    new_away = pd.DataFrame([{x:y for x, y in zip(cats, away_scores)}])
+                
                     record_df = pd.concat([record_df, new_home], axis=0)
                     record_df = pd.concat([record_df, new_away], axis=0)
-
+                    
+                    
             self.driver.quit()
-
-            # Apply the formatting function
-            formatted_record_df = __record_formatter(
-                record_df, list(range(1, (int(self.config["league_period"]) + 1)))
-            )
-
+            
+            #Apply the formatting function 
+            formatted_record_df = __record_formatter(record_df, list(range(1, (int(self.config['league_period']) + 1))))
+            
             print(formatted_record_df)
-            # Update the class record (the pickle loads occur on class init)
+            
+            #Update the class record (the pickle loads occur on class init)
             self.league_record = formatted_record_df
-
-            # Pickle
+            
+            #Pickle
             formatted_record_df.to_pickle(
-                Path(__file__).parent / "pickle/pickled_record.pkl"
-            )
-
-            # Log a successful update
+                Path(__file__).parent / "pickle/pickled_record.pkl")
+            
+            #Log a successful update        
             self.logger.info(f"\nLAST RECORD UPDATE: {datetime.now()}")
-
+        
         _html_updater()
         _pickle_updater()
         _weekly_totals_updater(refresh=refresh)
-
+        
+        
     def session(self):
         with requests.Session() as s:
             s.post(self.config["login_url"], data=self.config["login_info"])
@@ -622,8 +550,8 @@ class CBS:
 
         return df_output
 
-    # Fills in the rest of the data from team pages: player salary, position, total weekly games
     def _additional_roster_filler(self, league, roster):
+        """ Fills in the rest of the data from team pages: player salary, position, total weekly games """
 
         # Goes through all the teams
         for id in range(1, 11):
@@ -668,11 +596,11 @@ class CBS:
 
             # Record data on league df
             league["weekly_games"][league.team_id == str(id)] = weekly_game_counter
-            league["history"] = {"Record": ""}
+            league['history'] = {'Record':''}
             league["total_salary"][league.team_id == str(id)] = sum(
                 [int(x[0]) for x in salary_list]
             )
-
+            
             # Record data on roster df
             for name, sal, pos in zip(player_names, salary_list, positions):
                 roster["salary"][roster.index == str(name)] = int(sal[0])
@@ -681,14 +609,14 @@ class CBS:
 
         return league, roster
 
-    # Outputs a df roster of zscores
     def _zroster_builder(self, roster, draft=False):
-
-        # Pare the roster of players who haven't played games (avoid skewing zscores)
-        roster = roster.loc[roster["g"] > 0]
-
-        exclusions = ["player_name", "g", "zrank", "team_id"]
-
+        """ Outputs a df roster of zscores """
+        
+        #Pare the roster of players who haven't played games (avoid skewing zscores)
+        roster = roster.loc[roster['g'] > 0]
+        
+        exclusions = ["player_name", "g", "zrank", 'team_id']
+        
         data_refs = {
             str(x + "-avg"): None
             for x in self.config["tracked_zcats"]
@@ -817,38 +745,32 @@ class CBS:
 
         if draft == True:
             # Calculate relative $ value
-            z_df["draft"] = z_df.apply(
-                lambda row: (row["zrank"] / z_df["zrank"].sum())
-                * self.config["league_total_budget"]
-                * -1,
-                axis=1,
-            ).astype("int")
-
+            z_df["draft"] = (
+                z_df.apply(
+                    lambda row: (row["zrank"] / z_df["zrank"].sum())
+                    * self.config["league_total_budget"] * -1,
+                    axis=1,
+                )
+                .astype("int")
+            )
+            
+            
             # Calculate relative $ value
-            z_df["adj-draft"] = z_df.apply(
-                lambda row: (row["adj-zrank"] / z_df["adj-zrank"].sum())
-                * self.config["league_total_budget"]
-                * -1,
-                axis=1,
-            ).astype("int")
-        else:
-            pass
+            z_df["adj-draft"] = (
+                z_df.apply(
+                    lambda row: (row["adj-zrank"] / z_df["adj-zrank"].sum())
+                    * self.config["league_total_budget"] * -1,
+                    axis=1,
+                )
+                .astype("int")
+            )
+        else: pass
+        
+        #Normalize the zranks
+        z_df['zrank'] = round((z_df['zrank'] - z_df['zrank'].min()) / (z_df['zrank'].max() - z_df['zrank'].min()) * 100, 0).astype('int')
 
-        # Normalize the zranks
-        z_df["zrank"] = round(
-            (z_df["zrank"] - z_df["zrank"].min())
-            / (z_df["zrank"].max() - z_df["zrank"].min())
-            * 100,
-            0,
-        ).astype("int")
-
-        # Normalize the adjusted zranks
-        z_df["adj-zrank"] = round(
-            (z_df["adj-zrank"] - z_df["adj-zrank"].min())
-            / (z_df["adj-zrank"].max() - z_df["adj-zrank"].min())
-            * 100,
-            0,
-        ).astype("int")
+        #Normalize the adjusted zranks
+        z_df['adj-zrank'] = round((z_df['adj-zrank'] - z_df['adj-zrank'].min()) / (z_df['adj-zrank'].max() - z_df['adj-zrank'].min()) * 100, 0).astype('int')
 
         # Zrank dif (shows impact of punting cats)
         z_df["z-dif"] = z_df.apply(
@@ -857,103 +779,58 @@ class CBS:
 
         if draft == True:
             # #Normalize the draft values
-            z_df["draft"] = round(
-                (z_df["draft"] - z_df["draft"].min())
-                / (z_df["draft"].max() - z_df["draft"].min())
-                * 65,
-                0,
-            ).astype("int")
-
+            z_df['draft'] = round((z_df['draft'] - z_df['draft'].min()) / (z_df['draft'].max() - z_df['draft'].min()) * 65, 0).astype('int')
+            
             #  #Normalize the adjusted draft values
-            z_df["adj-draft"] = round(
-                (z_df["adj-draft"] - z_df["adj-draft"].min())
-                / (z_df["adj-draft"].max() - z_df["adj-draft"].min())
-                * 65,
-                0,
-            ).astype("int")
-        else:
-            pass
-
+            z_df['adj-draft'] = round((z_df['adj-draft'] - z_df['adj-draft'].min()) / (z_df['adj-draft'].max() - z_df['adj-draft'].min()) * 65, 0).astype('int')
+        else: pass
+        
         # Cleanup the df
         z_df = z_df.drop(columns=["fgp", "ftp"]).rename(
             columns={"fgpg": "fg", "ftpg": "ft", "3ptpg": "3p"}
         )
-
+        
         z_df.set_index(["player_name"], inplace=True)
-
+        
         return z_df
 
-    # Tool to lookup zranks (players and teams)
     def z(self, *args, cats=None):
-
+        """ Tool to lookup zranks (players and teams) """
+        
         if cats:
-            exclusions = ["g", "zrank", "player_name"]
-            cats_list = list(
-                [y for y in self.config["tracked_zcats"] if y not in exclusions]
-            )
-            if (
-                any(
-                    item in args
-                    for item in self.config["tracked_zcats"]
-                    if item not in exclusions
-                )
-                == True
-            ):
+            exclusions = ['g', 'zrank', 'player_name']
+            cats_list = list([y for y in self.config['tracked_zcats'] if y not in exclusions])
+            if any(item in args for item in self.config['tracked_zcats'] if item not in exclusions) == True:
                 for x in args:
                     print(self.zscores.sort_values(by=x, ascending=True).tail(20))
             else:
-                print(
-                    f"No proper categories input; try one of the following: {cats_list}"
-                )
-
-        else:
-            team_dict = {
-                x: y
-                for x, y in zip(
-                    self.league_df.index.tolist(), self.league_df["team_id"].tolist()
-                )
-            }
+                print(f'No proper categories input; try one of the following: {cats_list}')
+                
+        else: 
+            team_dict = {x:y for x, y in zip(self.league_df.index.tolist(), self.league_df['team_id'].tolist())}
             for x in args:
-                # Check if it's a team.
-                team_check = list(
-                    filter(lambda y: x in y, self.league_df.index.tolist())
-                )
-                player_check = list(
-                    filter(lambda y: x in y, self.zscores.index.tolist())
-                )
-
+                #Check if it's a team. 
+                team_check = list(filter(lambda y: x in y, self.league_df.index.tolist()))
+                player_check = list(filter(lambda y: x in y, self.zscores.index.tolist()))
+                
                 if len(team_check) == 0 and len(player_check) == 0:
-                    continue
+                    continue 
                 elif len(team_check) == 1 and len(player_check) == 0:
-                    print(
-                        f"\nTEAM {team_check[0]}",
-                        self.zscores.loc[
-                            self.zscores["team_id"] == int(team_dict[team_check[0]])
-                        ].sort_values(by="zrank"),
-                    )
+                    print(f'\nTEAM {team_check[0]}', self.zscores.loc[self.zscores['team_id'] == int(team_dict[team_check[0]])].sort_values(by='zrank')) 
                 elif len(team_check) > 0 and len(player_check) > 0:
-                    print(
-                        f"\nTEAM {team_check[0]}:\n",
-                        self.zscores.loc[
-                            self.zscores["team_id"] == int(team_dict[team_check[0]])
-                        ].sort_values(by="zrank"),
-                    )
+                    print(f'\nTEAM {team_check[0]}:\n',self.zscores.loc[self.zscores['team_id'] == int(team_dict[team_check[0]])].sort_values(by='zrank'))
                     if len(player_check) == 1:
-                        print(
-                            "\n",
-                            self.zscores.loc[self.zscores.index == player_check[0]],
-                        )
-                    else:
+                        print('\n',self.zscores.loc[self.zscores.index == player_check[0]])
+                    else: 
                         for y in player_check:
-                            print("\n", self.zscores.loc[self.zscores.index == y])
+                            print('\n',self.zscores.loc[self.zscores.index == y])
                 elif len(player_check) == 1 and len(team_check) == 0:
                     print(self.zscores.loc[self.zscores.index == player_check[0]])
                 elif len(player_check) > 1 and len(team_check) == 0:
                     for y in player_check:
                         print(self.zscores.loc[self.zscores.index == y])
-                else:
-                    pass
-
+                else: pass
+        
 
 if __name__ == "__main__":
     # load config
@@ -969,22 +846,7 @@ if __name__ == "__main__":
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_colwidth", None)
 
-    cbs = CBS(cbs_user, cbs_pass, config_path)
-
-    # cbs.update()
-
-    # out = cbs._zroster_builder(cbs.roster_current)
-
-    # print(cbs.league_record)
-    # test = cbs.league_record.at['Fish', 'period_1']
-
-    # print(week_totals(cbs.league_record, 1, 2))
-    # print(cbs.league_record['period_2'])
-    # print(cbs.roster_current)
-
-    # print(week_totals(cbs.league_record, 1, 2).info())
-    # test = week_totals(cbs.league_record, 1, 2).groupby('period')[['3pt', 'ast', 'bk']].aggregate('min', 'max')
-
-    # test_2 = pd.concat([test.get_group(1), test.get_group(2)], axis=1)
-
-    print(cbs.league_record)
+    
+    
+        
+        

@@ -3,4 +3,9 @@ env
 pickle
 html
 logs
+__pycache_
+*.swp
+*.json
+images
+_
 
