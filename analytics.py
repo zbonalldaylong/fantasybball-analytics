@@ -358,12 +358,5 @@ if __name__ == "__main__":
     cbs = cbs.CBS(cbs_user, cbs_pass, config_path)
     
     period_range = [1, 2, 3, 4, 5, 6]
-    
-    #cbs.update(refresh=True)
-    #faceoff(cbs.league_record, 'Taints', period_range)
-    #team_strengths(cbs.league_record, 'Taints', period_range, multi=True, Prankings=False)
-    snapshot(cbs.league_record, 'Taints', period_range)
 
-    
-    
     
