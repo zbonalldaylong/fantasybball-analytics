@@ -998,40 +998,6 @@ if __name__ == "__main__":
     pd.set_option("display.max_colwidth", None)
     warnings.filterwarnings("ignore")
 
-    def commandline_interpreter():
-
-        # Label positions
-        if "-labelpos" in sys.argv:
-            label_index = sys.argv.index("-labelpos")
-            new_city_list = []
-            for x in sys.argv[label_index + 1].split("+"):
-                splitd = x.split(">")
-                new_city_list.append([splitd[0], splitd[1].replace("_", " ")])
-            map_content["city_list"] = new_city_list
-
-        # Format: [label, direction, extent, size_override (0 for unchanged)]
-        if "-labeladjust" in sys.argv:
-            label_index = sys.argv.index("-labeladjust")
-            # Check the input because this is a complicated one.
-            for y in sys.argv[label_index + 1].split("+"):
-                if y.count(">") != 3:
-                    print("Input error on -labeladjust; please try again.")
-                    sys.exit()
-                else:
-                    pass
-
-            new_adjust_list = []
-            for x in sys.argv[label_index + 1].split("+"):
-                splitd = x.split(">")
-                new_adjust_list.append(
-                    [
-                        splitd[0],
-                        splitd[1].replace("_", " "),
-                        float(splitd[2]),
-                        float(splitd[3]),
-                    ]
-                )
-            map_content["label_adjusts"] = new_adjust_list
 
     # commandline_interpreter()
     def command_line():
