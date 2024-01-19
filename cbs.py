@@ -618,19 +618,21 @@ class CBS:
         exclusions = ["player_name", "g", "zrank", 'team_id']
         
         data_refs = {
+            **{
             str(x + "-avg"): None
             for x in self.config["tracked_zcats"]
             if x not in exclusions
-        } | {
+        },
+            **{
             str(x + "-stdev"): None
             for x in self.config["tracked_zcats"]
             if x not in exclusions
-        }
+        }}
 
         for x in self.config["tracked_zcats"]:
             if x not in exclusions:
-                data_refs.update({str(x + "-avg"): roster[x].mean().round(3)})
-                data_refs.update({str(x + "-stdev"): roster[x].std().round(3)})
+                data_refs.update({str(x + "-avg"): roster[x].mean()})
+                data_refs.update({str(x + "-stdev"): roster[x].std()})
 
         roster["fg-impact"] = roster.apply(
             lambda row: (row.fgp - data_refs.get("fgp-avg")) * row.fgpg, axis=1
@@ -639,11 +641,11 @@ class CBS:
             lambda row: (row.ftp - data_refs.get("ftp-avg")) * row.ftpg, axis=1
         ).round(3)
 
-        data_refs["fg-impact-stdev"] = roster["fg-impact"].std().round(3)
-        data_refs["ft-impact-stdev"] = roster["ft-impact"].std().round(3)
+        data_refs["fg-impact-stdev"] = roster["fg-impact"].std()
+        data_refs["ft-impact-stdev"] = roster["ft-impact"].std()
 
-        data_refs["fg-impact-avg"] = roster["fg-impact"].mean().round(3)
-        data_refs["ft-impact-avg"] = roster["ft-impact"].mean().round(3)
+        data_refs["fg-impact-avg"] = roster["fg-impact"].mean()
+        data_refs["ft-impact-avg"] = roster["ft-impact"].mean()
 
         # Build the z-roster
         z_df = pd.DataFrame(columns=self.config["tracked_zcats"])
